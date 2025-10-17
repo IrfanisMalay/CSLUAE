@@ -5,4 +5,4 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/IrfanisMalay/CSLUAE/r
 
 # Made using rayfield by Sirius modded by Irfan and Fixed using ChatGPT.
 
-#open source for scriptor ideas.
+# open source for scriptor ideas.
