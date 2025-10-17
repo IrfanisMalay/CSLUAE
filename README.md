@@ -1,7 +1,7 @@
 # CSLUAE
 Client-side LUA editor roblox gui
 code:
-loadstring("https://raw.githubusercontent.com/IrfanisMalay/CSLUAE/refs/heads/main/script%20executor.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/IrfanisMalay/CSLUAE/main/script%20executor.lua"))()
 
 # Made using rayfield by Sirius modded by Irfan and Fixed using ChatGPT.
 
