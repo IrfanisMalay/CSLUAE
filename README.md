@@ -1,7 +1,7 @@
 # CSLUAE
 Client-side LUA editor roblox gui
 code:
--- 🧩 Safe Remote Loader (Xeno / Syn / Fluxus compatible)
+    - 🧩 Safe Remote Loader (Xeno / Syn / Fluxus compatible)
 
 local url = "https://raw.githubusercontent.com/IrfanisMalay/CSLUAE/main/script%20executor.lua"
 
