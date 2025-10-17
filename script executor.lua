@@ -1,84 +1,87 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Load Rayfield UI Library
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+-- Create Main Window
 local Window = Rayfield:CreateWindow({
-   Name = "CSLUAE Client-side LUA Editor",
-   Icon = "square-code", -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
-   LoadingTitle = "CSLUAE Client-side LUA Editor",
-   LoadingSubtitle = "Rayfield-Sirius CSLUAE-Irfan",
-   ShowText = "CSLUAE Client-side LUA Editor", -- for mobile users to unhide rayfield, change if you'd like
-   Theme = "Ocean", -- Check https://docs.sirius.menu/rayfield/configuration/themes
+    Name = "CSLUAE Client-side LUA Editor",
+    Icon = "square-code", -- Lucide icon or Roblox image ID
+    LoadingTitle = "CSLUAE Client-side LUA Editor",
+    LoadingSubtitle = "Rayfield-Sirius CSLUAE-Irfan",
+    ShowText = "CSLUAE Client-side LUA Editor", -- Text for mobile toggle
+    Theme = "Ocean", -- Themes: Ocean, Amethyst, etc.
 
-   ToggleUIKeybind = Enum.KeyCode.64 , -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
+    ToggleUIKeybind = Enum.KeyCode.RightControl, -- FIXED: Must be Enum.KeyCode, not (Enum.KeyCode.64)
 
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false,
 
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = nil, -- Create a custom folder for your hub/game
-      FileName = "CSLUAE"
-   },
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "CSLUAE", -- Saves to this folder
+        FileName = "CSLUAE_Config"
+    },
 
-   Discord = {
-      Enabled = false, -- Prompt the user to join your Discord server if their executor supports it
-      Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
-      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
-   },
+    Discord = {
+        Enabled = false,
+        Invite = "no",
+        RememberJoins = true
+    },
 
-   KeySystem = true, -- Set this to true to use our key system
-   KeySettings = {
-      Title = "CSLUAE VERIFICATION",
-      Subtitle = "Human Face Key System",
-      Note = "No method of obtaining the key is provided", -- Use this to tell the user how to get a key
-      FileName = "humankey", -- something here
-      SaveKey = false, -- something here
-      GrabKeyFromSite = false, -- something here
-      Key = {"X3NO1SB37TER"}
-   }
+    KeySystem = true,
+    KeySettings = {
+        Title = "CSLUAE VERIFICATION",
+        Subtitle = "Human Face Key System",
+        Note = "https://scratch.mit.edu/projects/1230152956/",
+        FileName = "humankey",
+        SaveKey = false,
+        GrabKeyFromSite = false,
+        Key = {"X3NO1SB37TER"}
+    }
 })
 
-local Tab = Window:CreateTab("Editor and executor", "chevrons-left-right-ellipsis")
-local Section = Tab:CreateSection("Editor")
--- Create a TextEditor to hold the script
-local TextEditor = Tab:CreateTextArea({
-   Name = "Lua Script",
-   Placeholder = "Enter your Lua script here...",
-   Text = ""
+-- Create Tab & Section
+local Tab = Window:CreateTab("Editor and Executor", "code")
+local Section = Tab:CreateSection("Script Editor")
+
+-- Create TextArea
+local TextEditor = Tab:CreateTextBox({
+    Name = "Lua Script",
+    PlaceholderText = "Enter your Lua script here...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function() end
 })
 
--- Create a button to execute the script in the TextEditor
-local Button = Tab:CreateButton({
-   Name = "Execute Script",
-   Callback = function()
-       local scriptToExecute = TextEditor:GetText() -- Retrieve the text from the TextEditor
-       
-       if scriptToExecute and scriptToExecute ~= "" then -- Check that the text box isn't empty
-           local success, errorMessage = pcall(function()
-               local func = loadstring(scriptToExecute)
-               func()
-           end)
+-- Create Execute Button
+local ExecuteButton = Tab:CreateButton({
+    Name = "Execute Script",
+    Callback = function()
+        local scriptToExecute = TextEditor.Input -- FIXED: Correct way to get textbox input
 
-           if not success then
-               -- Show an error notification if the script fails
-               Rayfield:Notify({
-                   Title = "Execution Error",
-                   Content = "An error occurred during script execution: " .. errorMessage,
-                   Duration = 5 -- How long the notification will be visible
-               })
-           else
-               -- Show a success notification
-               Rayfield:Notify({
-                   Title = "Execution Successful",
-                   Content = "Your script has been executed.",
-                   Duration = 3
-               })
-           end
-       else
-           -- Show a warning if the text box is empty
-           Rayfield:Notify({
-               Title = "No Script Entered",
-               Content = "Please enter a script to execute.",
-               Duration = 3
-           })
-       end
-   end,
+        if scriptToExecute and scriptToExecute ~= "" then
+            local success, err = pcall(function()
+                local func = loadstring(scriptToExecute)
+                func()
+            end)
+
+            if success then
+                Rayfield:Notify({
+                    Title = "Execution Successful",
+                    Content = "Your script was executed successfully!",
+                    Duration = 4
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Execution Error",
+                    Content = "Error while running script:\n" .. tostring(err),
+                    Duration = 6
+                })
+            end
+        else
+            Rayfield:Notify({
+                Title = "No Script Entered",
+                Content = "Please enter a Lua script to execute!",
+                Duration = 3
+            })
+        end
+    end
 })
