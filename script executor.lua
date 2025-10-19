@@ -32,12 +32,12 @@ local Window = Rayfield:CreateWindow({
    KeySystem = true,
    KeySettings = {
       Title = "CSLUAE VERIFICATION",
-      Subtitle = "Human Face Key System",
-      Note = "Key: X3NO1SB37TER",
+      Subtitle = "VERIFICATION Key System",
+      Note = "Key: 3XPL0IT3R",
       FileName = "humankey",
       SaveKey = false,
       GrabKeyFromSite = false,
-      Key = {"X3NO1SB37TER"}
+      Key = {"3XPL0IT3R"}
    }
 })
 
@@ -48,7 +48,7 @@ local editorText = "" -- source-of-truth for editor contents
 
 local function safeCall(fn, ...)
    local ok, res = pcall(fn, ...)
-   if ok then return true, res end
+   if ok then return false, res end
    return false, res
 end
 
@@ -292,6 +292,7 @@ Tab:CreateButton({
 ------------------------------------------------------------
 Rayfield:Notify({
    Title = "CSLUAE Ready",
-   Content = "Editor fixed — you can type and execute scripts. Key: X3NO1SB37TER",
+   Content = "Editor fixed — you can type and execute scripts. Key: 3XPL0IT3R",
    Duration = 6
 })
+
