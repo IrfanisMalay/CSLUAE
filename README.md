@@ -1,72 +1,96 @@
 #TO RUN IT USE THIS CODE:
 
-    -- Example: compile & run whatever is in your editor safely and capture returns.
-    -- Place this inside your UI button Callback (uses getTextBox & Rayfield from previous script).
+    -- file: csluae/load_from_url.lua
+-- Fetch + loadstring + execute from a raw GitHub URL (robust for Xeno / Fluxus / Synapse / Roblox)
+
+    local function detectHttpGet()
+       if typeof(xeno) == "table" and type(xeno.request) == "function" then
+          return function(url)
+             local res = xeno.request({Url = url, Method = "GET"})
+             return res and (res.Body or res.body)
+          end
+       elseif type(fluxus) == "table" and type(fluxus.request) == "function" then
+          return function(url)
+             local res = fluxus.request({Url = url, Method = "GET"})
+             return res and (res.Body or res.body)
+          end
+       elseif type(request) == "function" then
+          return function(url)
+             local res = request({Url = url, Method = "GET"})
+             return res and (res.Body or res.body)
+          end
+       elseif typeof(game.HttpGet) == "function" then
+          return function(url) return game:HttpGet(url) end
+       end
+       return nil
+    end
     
-    local function executeEditorScript(TextEditor)
-       -- 1. get text
-       local scriptText = (getTextBox and getTextBox(TextEditor)) or tostring(TextEditor and TextEditor.Text or "") or ""
-       scriptText = tostring(scriptText)
+    -- Replace URL below with the exact raw URL you provided
+    local RAW_URL = "https://raw.githubusercontent.com/IrfanisMalay/CSLUAE/refs/heads/main/script%20executor.lua"
     
-       if scriptText == "" then
-          return Rayfield:Notify({Title = "No Script", Content = "Editor is empty.", Duration = 3})
+    -- Main loader: fetch, compile, execute
+    local function loadAndExecuteFromUrl(url, opts)
+       opts = opts or {}
+       local httpGet = detectHttpGet()
+       if not httpGet then
+          if Rayfield then
+             Rayfield:Notify({Title = "HTTP unavailable", Content = "No supported HTTP method found.", Duration = 4})
+          end
+          return false, "no_http"
        end
     
-       -- 2. compile (loadstring for older envs, load as fallback)
+       local ok, body = pcall(function() return httpGet(url) end)
+       if not ok or not body or tostring(body) == "" then
+          if Rayfield then
+             Rayfield:Notify({Title = "Fetch failed", Content = "Could not fetch URL or response empty.", Duration = 5})
+          end
+          return false, "fetch_failed"
+       end
+    
        local chunk, compileErr
        if type(loadstring) == "function" then
-          chunk, compileErr = loadstring(scriptText)
+          chunk, compileErr = loadstring(body)
        else
-          chunk, compileErr = load(scriptText)
+          chunk, compileErr = load(body)
        end
     
        if not chunk then
-          -- compile error (syntax)
-          return Rayfield:Notify({Title = "Compile Error", Content = tostring(compileErr), Duration = 6})
+          if Rayfield then
+             Rayfield:Notify({Title = "Compile Error", Content = tostring(compileErr), Duration = 7})
+          end
+          return false, ("compile_error: %s"):format(tostring(compileErr))
        end
     
-       -- 3a. preferred: run in coroutine to allow yields (safe for Roblox code that may wait)
-       local ok, results
-       local runner = coroutine.wrap(function()
-          -- run chunk inside pcall so runtime errors are caught
-          local success, ...
-          success, ... = pcall(chunk)
-          if not success then
-             error((...)) -- rethrow to be caught by outer pcall below
+       -- choose runner: coroutine for yielding code, or pcall for non-yielding
+       if opts.allowYield then
+          local runner = coroutine.wrap(function()
+             local ok, err = pcall(chunk)
+             if not ok then error(err) end
+          end)
+          local topOk, topErr = pcall(function() runner() end)
+          if not topOk then
+             if Rayfield then Rayfield:Notify({Title = "Runtime Error", Content = tostring(topErr), Duration = 7}) end
+             return false, ("runtime_error: %s"):format(tostring(topErr))
           end
-          results = {...} -- capture return values
-       end)
-    
-       -- 3b. top-level pcall to catch coroutine errors
-       local topOk, topErr = pcall(function() runner() end)
-       if not topOk then
-          return Rayfield:Notify({Title = "Runtime Error", Content = tostring(topErr), Duration = 6})
-       end
-    
-       -- 4. report return values (if any)
-       if results and #results > 0 then
-          -- join first few values into a string for display
-          local out = {}
-          for i = 1, math.min(#results, 5) do
-             table.insert(out, tostring(results[i]))
-          end
-          Rayfield:Notify({
-             Title = "Executed — Return Values",
-             Content = table.concat(out, ", "),
-             Duration = 5
-          })
        else
-          Rayfield:Notify({Title = "Executed", Content = "Script ran successfully (no return values).", Duration = 4})
+          local okExec, execErr = pcall(chunk)
+          if not okExec then
+             if Rayfield then Rayfield:Notify({Title = "Runtime Error", Content = tostring(execErr), Duration = 7}) end
+             return false, ("runtime_error: %s"):format(tostring(execErr))
+          end
        end
+    
+       if Rayfield then
+          Rayfield:Notify({Title = "Loaded & Executed", Content = "Script loaded from URL and executed.", Duration = 4})
+       end
+       return true
     end
     
-    -- Example usage in a button callback:
-    Tab:CreateButton({
-       Name = "Execute Script (safe)",
-       Callback = function()
-          executeEditorScript(TextEditor)
-       end
-    })
+    -- Usage example (non-yielding execution)
+    local success, err = loadAndExecuteFromUrl(RAW_URL, {allowYield = false})
+    -- if you expect the remote script to use yieldable functions like wait(), use allowYield = true:
+    -- local success, err = loadAndExecuteFromUrl(RAW_URL, {allowYield = true})
+    
 
 # Made using rayfield by Sirius modded by Irfan and Fixed using ChatGPT.
 
