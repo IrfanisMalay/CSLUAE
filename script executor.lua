@@ -1,5 +1,7 @@
 -- CSLUAE Client-side Lua Editor + Key System
 -- Works on Xeno, Synapse, Fluxus, etc.
+-- path: csluae/editor.lua
+-- TL;DR: Fixes TextBox writability and makes Execute read from the live editor text reliably.
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
@@ -7,8 +9,8 @@ local Window = Rayfield:CreateWindow({
    Name = "CSLUAE Client-side LUA Editor",
    Icon = "square-code",
    LoadingTitle = "CSLUAE Client-side LUA Editor",
-   LoadingSubtitle = "Rayfield-Sirius CSLUAE-Irfan",
-   ShowText = "CSLUAE Client-side LUA Editor",
+   LoadingSubtitle = "CSLUAE Client-side LUA Editor - Fixed Editor",
+   ShowText = "CSLUAE client editor",
    Theme = "Ocean",
    ToggleUIKeybind = Enum.KeyCode.F4,
 
@@ -27,7 +29,6 @@ local Window = Rayfield:CreateWindow({
       RememberJoins = true
    },
 
-   -- ✅ Key System (your original setup)
    KeySystem = true,
    KeySettings = {
       Title = "CSLUAE VERIFICATION",
@@ -41,24 +42,82 @@ local Window = Rayfield:CreateWindow({
 })
 
 ------------------------------------------------------------
--- Editor Tab
+-- Helpers: robust TextBox getter/setter (tries common Rayfield variants)
 ------------------------------------------------------------
-local Tab = Window:CreateTab("Editor and Executor", "code")
-Tab:CreateSection("Script Editor")
+local editorText = "" -- source-of-truth for editor contents
 
--- Text editor box
-local TextEditor = Tab:CreateTextBox({
-   Name = "Lua Script",
-   PlaceholderText = "Enter your Lua script here...",
-   RemoveTextAfterFocusLost = false,
-   Callback = function() end
-})
+local function safeCall(fn, ...)
+   local ok, res = pcall(fn, ...)
+   if ok then return true, res end
+   return false, res
+end
 
--- Detect best HTTP method for Xeno etc.
+local function setTextBox(text, textBox)
+   text = tostring(text or "")
+   -- update local copy
+   editorText = text
+
+   if not textBox then return end
+
+   -- try common Rayfield API methods/properties
+   -- order: SetValue, Set, SetText, .Input, .CurrentText, .Text
+   local tried = {
+      function() return textBox.SetValue and textBox:SetValue(text) end,
+      function() return textBox.Set and textBox:Set(text) end,
+      function() return textBox.SetText and textBox:SetText(text) end,
+      function() textBox.Input = text end,
+      function() textBox.CurrentText = text end,
+      function() textBox.Text = text end
+   }
+
+   for _, fn in ipairs(tried) do
+      local ok = pcall(fn)
+      if ok then return true end
+   end
+   return false
+end
+
+local function getTextBox(textBox)
+   -- prefer local copy
+   if type(editorText) == "string" and editorText ~= "" then
+      return editorText
+   end
+
+   if not textBox then return editorText end
+
+   -- try common getters
+   local getters = {
+      function() if textBox.GetValue then return textBox:GetValue() end end,
+      function() if textBox.Get then return textBox:Get() end end,
+      function() if textBox.GetText then return textBox:GetText() end end,
+      function() if textBox.Input then return textBox.Input end end,
+      function() if textBox.CurrentText then return textBox.CurrentText end end,
+      function() if textBox.Text then return textBox.Text end end,
+   }
+
+   for _, g in ipairs(getters) do
+      local ok, res = pcall(g)
+      if ok and res ~= nil then
+         editorText = tostring(res)
+         return editorText
+      end
+   end
+
+   return editorText
+end
+
+------------------------------------------------------------
+-- Detect best HTTP method for Xeno / Synapse / Fluxus etc.
+------------------------------------------------------------
 local function detectHttpGet()
    if typeof(xeno) == "table" and type(xeno.request) == "function" then
       return function(url)
          local res = xeno.request({Url = url, Method = "GET"})
+         return res and (res.Body or res.body)
+      end
+   elseif type(fluxus) == "table" and type(fluxus.request) == "function" then
+      return function(url)
+         local res = fluxus.request({Url = url, Method = "GET"})
          return res and (res.Body or res.body)
       end
    elseif type(request) == "function" then
@@ -69,19 +128,43 @@ local function detectHttpGet()
    elseif typeof(game.HttpGet) == "function" then
       return function(url) return game:HttpGet(url) end
    end
+   return nil
 end
 
 local httpGet = detectHttpGet()
 
 ------------------------------------------------------------
--- Buttons
+-- Editor Tab + TextBox (writable)
+------------------------------------------------------------
+local Tab = Window:CreateTab("Editor and Executor", "code")
+Tab:CreateSection("Script Editor")
+
+-- Create the text box and use its Callback to update editorText
+local TextEditor = Tab:CreateTextBox({
+   Name = "Lua Script",
+   PlaceholderText = "Enter your Lua script here...",
+   RemoveTextAfterFocusLost = false,
+   -- every change updates the local editorText
+   Callback = function(txt)
+      editorText = tostring(txt or "")
+   end
+})
+
+-- Ensure initial UI text is blank
+setTextBox("", TextEditor)
+
+------------------------------------------------------------
+-- Buttons (Execute, Load from GitHub, Clear)
 ------------------------------------------------------------
 
 -- Execute Script
 Tab:CreateButton({
    Name = "Execute Script",
    Callback = function()
-      local scriptText = TextEditor.Input or TextEditor.Text or ""
+      -- get robustly from local or TextEditor
+      local scriptText = getTextBox(TextEditor) or ""
+      scriptText = tostring(scriptText)
+
       if scriptText == "" then
          return Rayfield:Notify({
             Title = "No Script Entered",
@@ -90,22 +173,29 @@ Tab:CreateButton({
          })
       end
 
-      local func, err = loadstring(scriptText)
-      if not func then
+      -- try compile using loadstring or load
+      local compile, compileErr
+      if type(loadstring) == "function" then
+         compile, compileErr = loadstring(scriptText)
+      else
+         compile, compileErr = load(scriptText)
+      end
+
+      if not compile then
          Rayfield:Notify({
             Title = "Compile Error",
-            Content = tostring(err),
-            Duration = 5
+            Content = tostring(compileErr),
+            Duration = 6
          })
          return
       end
 
-      local success, runtimeError = pcall(func)
-      if not success then
+      local ok, runtimeErr = pcall(compile)
+      if not ok then
          Rayfield:Notify({
             Title = "Runtime Error",
-            Content = tostring(runtimeError),
-            Duration = 5
+            Content = tostring(runtimeErr),
+            Duration = 6
          })
       else
          Rayfield:Notify({
@@ -143,7 +233,8 @@ Tab:CreateButton({
          return
       end
 
-      TextEditor.Input = data
+      -- set editor text using robust setter
+      setTextBox(data, TextEditor)
       Rayfield:Notify({
          Title = "Loaded Successfully",
          Content = "GitHub script loaded into the editor.",
@@ -156,7 +247,7 @@ Tab:CreateButton({
 Tab:CreateButton({
    Name = "Clear Editor",
    Callback = function()
-      TextEditor.Input = ""
+      setTextBox("", TextEditor)
       Rayfield:Notify({
          Title = "Editor Cleared",
          Content = "The editor has been cleared.",
@@ -166,11 +257,41 @@ Tab:CreateButton({
 })
 
 ------------------------------------------------------------
--- End of script
+-- Optional: Save to local file button (if writefile exists)
 ------------------------------------------------------------
+Tab:CreateButton({
+   Name = "Save to File (writefile)",
+   Callback = function()
+      local scriptText = getTextBox(TextEditor) or ""
+      if scriptText == "" then
+         return Rayfield:Notify({
+            Title = "Nothing to Save",
+            Content = "Editor is empty.",
+            Duration = 3
+         })
+      end
+      if type(writefile) == "function" then
+         pcall(function() writefile("CSLUAE_saved_script.lua", scriptText) end)
+         Rayfield:Notify({
+            Title = "Saved",
+            Content = "Script saved to CSLUAE_saved_script.lua",
+            Duration = 3
+         })
+      else
+         Rayfield:Notify({
+            Title = "Unsupported",
+            Content = "writefile is not supported by this executor.",
+            Duration = 4
+         })
+      end
+   end
+})
 
+------------------------------------------------------------
+-- Final ready notify
+------------------------------------------------------------
 Rayfield:Notify({
    Title = "CSLUAE Ready",
-   Content = "Enter your key (X3NO1SB37TER) to unlock the editor.",
+   Content = "Editor fixed — you can type and execute scripts. Key: X3NO1SB37TER",
    Duration = 6
 })
