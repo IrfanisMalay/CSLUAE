@@ -1,7 +1,7 @@
 #TO RUN IT USE THIS CODE:
 
     -- file: csluae/load_from_url.lua
--- Fetch + loadstring + execute from a raw GitHub URL (robust for Xeno / Fluxus / Synapse / Roblox)
+    -- Fetch + loadstring + execute from a raw GitHub URL (robust for Xeno / Fluxus / Synapse / Roblox)
 
     local function detectHttpGet()
        if typeof(xeno) == "table" and type(xeno.request) == "function" then
